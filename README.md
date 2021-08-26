@@ -115,9 +115,9 @@ indices    = np.argsort(np.abs(hourly- userhourly[:,np.newaxis]))[:,0] # closest
 frames     = era5['s','mslp',indices]
 
 # Extract Mean Sea Level Pressure to a Selafin File
-from s3netcdf import nca2slf
-nca2slf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00')
-nca2slf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00',step=2,stepUnit="h") # With a 2 hr time step
+
+era5.toslf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00')
+era5.toslf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00',step=2,stepUnit="h") # With a 2 hr time step
 
 # Extract Aggregated Daily Mean Sea Level Pressure
 frame        = era5['ds','mslp',0]
@@ -130,9 +130,28 @@ frame        = era5['ds','mslp',0,2] # Mean Only
 
 # Extract Daily Aggregated  Mean Sea Level Pressure to Selafin
 # Note: this creates 5 variables in the Selafin object (MSLP_MIN,MSLP_MEDIAN,MSLP_MEAN,MSLP_STD,MSLP_MAX)
-nca2slf('mslp.slf',group="ds",variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-10T00:00:00')
+era5.toslf('mslp.slf',group="ds",variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-10T00:00:00')
 # Extract Aggregated  Mean Sea Level Pressure to Selafin
-nca2slf('mslp.slf',group="as",variables=['mslp'])
-
- 
+era5.toslf('mslp.slf',group="as",variables=['mslp'])
 ```
+### Plot Frame using Matplotlib
+```python
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
+
+frame = era5['s','mslp',0] 
+x     = era5['node','x']
+y     = era5['node','y']
+elem  = era5['elem','elem']
+Tri   = tri.Triangulation(x, y,elem)
+
+fig1, ax1 = plt.subplots()
+tcf = ax1.tricontourf(Tri,frame)
+fig1.colorbar(tcf)
+ax1.tricontour(Tri, frame, colors='k')
+ax1.set_title('Contour plot')
+plt.savefig("tmp.png", bbox_inches='tight')
+
+```
+
+
