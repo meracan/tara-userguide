@@ -42,15 +42,16 @@ def run():
   lng    = era5['node','x']
   lat    = era5['node','y']
   elem   = era5['elem','elem']
-  indices = getClosestIndices(lng,lat,tideStations)
+  indices = getClosestIndices(lng,lat,waveStations)
   hourly = era5['time','time'] # hourly step
   daily   = era5['dtime','dtime']
   # yearly  = era5['ytime','ytime']
   # decadal = era5['Dtime','Dtime']
   
-  vname ="surge"
+  vname ="hs"
   ts      = era5['t',vname,indices]
-  plt.plot(hourly, ts[0])
+  ts[ts>20]=0.0 # Remove errorneous data
+  plt.plot(hourly, ts[3])
   plt.savefig("output/ts.{}.png".format(vname), bbox_inches='tight')
   
   # # Wave
