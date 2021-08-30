@@ -6,16 +6,16 @@ It is recommended to install [anaconda](https://docs.conda.io/projects/conda/en/
 ```bash
 conda create --name tara python=3.8
 conda activate tara
-conda install -c conda-forge numpy scipy netcdf4 matplotlib boto3 git
+conda install -c conda-forge numpy scipy netcdf4 matplotlib boto3 git tqdm
 
-git clone https://github.com/jcousineau/slf-py.git
-git clone https://github.com/meracan/netcdf.git
-git clone https://github.com/meracan/s3-netcdf.git
+git clone https://github.com/Julien-Cousineau/slf-py.git
+git clone https://github.com/meracan/netcdf
+git clone https://github.com/meracan/s3-netcdf
 pip install -e ./slf-py
 pip install -e ./netcdf
 pip install -e ./s3-netcdf
 ```
-(Developers) For running Telemac and post-processing:
+(Developers-NOT TESTED) For running Telemac and post-processing:
 ```bash
 git clone https://github.com/meracan/aws-tools.git
 git clone https://github.com/meracan/aws-batch-api.git
@@ -33,14 +33,14 @@ For example, the file should look similar to the following.
 ```
 [default]
 aws_access_key_id=AKIAIOSFODNN7EXAMPLE
-aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 region=us-east-1
 ```
 Please contact the administrator to get the `aws_access_key_id` and `aws_secret_access_key`.
 ## Models
 There are 5 models:
 - ERA5
--  rcp85.CanESM2.CanRCM4
+- rcp85.CanESM2.CanRCM4
 - rcp85.CanESM2.CRCM5-UQAM
 - rcp85.GFDL-ESM2M.WRF
 - rcp85.MPI-ESM-MR.CRCM5-UQAM
@@ -49,10 +49,10 @@ To access a model:
 ```python
 from s3netcdf import S3NetCDF
 parameters={
-	"name":"ERA5",     # name of model
-	"bucket":"cccris", # name of s3 bucket
-	"s3prefix":"data", # name of model
-	"cacheLocation":"{PATH_TO_DIRECTORY}" #Path to directory where the data will be temporary stored
+	"name":"ERA5",     # (required) name of model
+	"bucket":"cccris", # (required,fixed) name of s3 bucket
+	"s3prefix":"data", # (required,fixed) name of prefix for s3 bucket
+	"cacheLocation":"{PATH_TO_DIRECTORY}" # Path to directory where the data will be temporary stored
 }
 era5=S3NetCDF(parameters)
 ```
@@ -98,60 +98,109 @@ decadal = era5['Dtime','Dtime']
 ```
 ## Examples - Frames
 ```python
+import numpy as np
+
 era5=S3NetCDF(parameters)
 
-# Extract Mean Sea Level Pressure
-frame0=era5['s','mslp',0]       # Get frame=0
-frame0_10=era5['s','mslp',0:10] # Get frame 0 to 9
+lng    = era5['node','x']
+lat    = era5['node','y']
+elem   = era5['elem','elem']
+hourly = era5['time','time']    # hourly step
+daily   = era5['dtime','dtime'] # daily step
+yearly  = era5['ytime','ytime'] # yearly step
+decadal = era5['Dtime','Dtime'] # decadal step
+
+# Extract variable at frame(s)
+vname='mslp'
+frame0=era5['s',vname,0]       # Get frame=0
+frame0_10=era5['s',vname,0:10] # Get frame 0 to 9
 
 # Extract Mean Sea Level Pressure at specific date(s)
 # Single date
 userhourly = np.datetime64('1979-01-01T00:00:00')
 index      = np.argsort(np.abs(hourly- userhourly))[0] # closest index
-frame      = era5['s','mslp',index] 
+frame      = era5['s',vname,index] 
 # Multiple dates
 userhourly = np.datetime64('1979-01-01T00:00:00') + np.arange(0,10)*np.timedelta64(1,'h')
 indices    = np.argsort(np.abs(hourly- userhourly[:,np.newaxis]))[:,0] # closest indices
-frames     = era5['s','mslp',indices]
+frames     = era5['s',vname,indices]
 
-# Extract Mean Sea Level Pressure to a Selafin File
+# Extract variable to a Selafin File
+era5.toslf('output/{}.slf'.format(vname),variables=[vname],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00')
+era5.toslf('output/{}.slf'.format(vname),variables=[vname],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00',step=2,stepUnit="h") # With a 2 hr time step
 
-era5.toslf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00')
-era5.toslf('mslp.slf',variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-01T10:00:00',step=2,stepUnit="h") # With a 2 hr time step
+# Extract Aggregated Daily data
+frame        = era5['ds',vname,0]
 
-# Extract Aggregated Daily Mean Sea Level Pressure
-frame        = era5['ds','mslp',0]
-frame_min    = frame[0]
-frame_median = frame[1]
-frame_mean   = frame[2]
-frame_std    = frame[3]
-frame_max    = frame[4]
-frame        = era5['ds','mslp',0,2] # Mean Only
+frame_min    = frame[0] # min
+frame_median = frame[1] # median
+frame_mean   = frame[2] # avg
+frame_std    = frame[3] # std
+frame_max    = frame[4] # max
 
-# Extract Daily Aggregated  Mean Sea Level Pressure to Selafin
+frame        = era5['ds',vname,0,2] # Get mean values only
+
+# Extract Daily Aggregated data to Selafin
 # Note: this creates 5 variables in the Selafin object (MSLP_MIN,MSLP_MEDIAN,MSLP_MEAN,MSLP_STD,MSLP_MAX)
-era5.toslf('mslp.slf',group="ds",variables=['mslp'],startDate='1979-01-01T00:00:00',endDate='1979-01-10T00:00:00')
-# Extract Aggregated  Mean Sea Level Pressure to Selafin
-era5.toslf('mslp.slf',group="as",variables=['mslp'])
+era5.toslf('output/{}.daily.slf'.format(vname),group="ds",variables=[vname],startDate='1979-01-01T00:00:00',endDate='1979-01-03T00:00:00')
+# Extract Aggregated data to Selafin
+era5.toslf('output/{}.agg.slf'.format(vname),group="as",variables=[vname])
 ```
 ### Plot Frame using Matplotlib
 ```python
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import matplotlib.tri as tri
 
-frame = era5['s','mslp',0] 
+era5=S3NetCDF(parameters)
+vname   = 'mslp'
+frame = np.squeeze(era5['s',vname,0]) 
 x     = era5['node','x']
 y     = era5['node','y']
 elem  = era5['elem','elem']
 Tri   = tri.Triangulation(x, y,elem)
 
 fig1, ax1 = plt.subplots()
-tcf = ax1.tricontourf(Tri,frame)
+levels = np.arange(95, 105, 0.5)
+gamma = 1.3  
+
+tcf = ax1.tricontourf(Tri,frame,levels=levels, cmap="jet", norm=colors.PowerNorm(gamma=gamma))
 fig1.colorbar(tcf)
 ax1.tricontour(Tri, frame, colors='k')
 ax1.set_title('Contour plot')
-plt.savefig("tmp.png", bbox_inches='tight')
+plt.savefig("output/tmp.png", bbox_inches='tight')
 
 ```
 
+### Plot Timeseries
+```python
+
+era5=S3NetCDF(parameters)
+lng   = era5['node','x']
+lat   = era5['node','y']
+vname ="surge"
+
+
+# Extract variable at node0
+ts      = era5['t',vname,0]
+
+# Extract variable at specific tide stations
+tideStations = [
+  dict(xy=[-123.279, 49.297],id=7735,name="Vancouver"),
+  dict(xy= [-130.560, 54.299],id=9354,name="Prince Rupert"),
+  dict(xy=[-125.122, 48.871],id=8545,name="Bamfield"),
+]
+
+def getClosestIndices(x,y,stations):
+	from scipy import spatial
+	xy   = np.column_stack((x,y))
+	tree = spatial.KDTree(xy)
+  
+	pts  = np.asarray(list(map(lambda x:x['xy'],stations)))
+	return tree.query(pts)[1]
+
+indices = getClosestIndices(lng,lat,tideStations)
+ts      = era5['t',vname,indices]
+
+```
 
