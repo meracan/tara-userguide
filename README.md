@@ -204,3 +204,20 @@ ts      = era5['t',vname,indices]
 
 ```
 
+
+### Simulation
+DEMO
+```python
+from awstelemac import AWSTelemac
+from awstools import Batch
+
+# Create simulation
+modelId="ERA5"
+era5=AWSTelemac(modelId=modelId)
+casId=era5.uploadFromCas(casPath,module="telemac2d",keywords={"TIME STEP":30})
+
+# Run simulation
+batch=Batch() # AWS api
+batch.send(modelId=modelId,casId=casId)
+```
+
